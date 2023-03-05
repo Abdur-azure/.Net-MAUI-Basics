@@ -1,7 +1,7 @@
 ﻿
 namespace PassXYZ.Vault.Resources.Styles;
 
-static class FontAwesomeSolid
+static class IconFont
 {
     // FontAwesome
     public const string Ad = "\uf641";
@@ -578,7 +578,6 @@ static class FontAwesomeSolid
     public const string ParachuteBox = "\uf4cd";
     public const string Paragraph = "\uf1dd";
     public const string Parking = "\uf540";
-    public const string PassXYZ = "\uf00f";
     public const string Passport = "\uf5ab";
     public const string Pastafarianism = "\uf67b";
     public const string Paste = "\uf0ea";
