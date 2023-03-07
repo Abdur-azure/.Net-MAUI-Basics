@@ -1,57 +1,69 @@
-﻿using PassXYZ.Vault.Models;
-using System;
+﻿using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.Threading.Tasks;
-using Microsoft.Maui.Controls;
 
-namespace PassXYZ.Vault.ViewModels
+using KPCLib;
+using KeePassLib;
+using PassXYZLib;
+
+namespace PassXYZ.Vault.ViewModels;
+
+[QueryProperty(nameof(ItemId), nameof(ItemId))]
+public class ItemDetailViewModel : BaseViewModel
 {
-    [QueryProperty(nameof(ItemId), nameof(ItemId))]
-    public class ItemDetailViewModel : BaseViewModel
+    private string itemId;
+    private string description;
+    public string Id { get; set; }
+    public ObservableCollection<Field> Fields { get; set; }
+
+    public string Description
     {
-        private string itemId;
-        private string text;
-        private string description;
-        public string Id { get; set; }
+        get => description;
+        set => SetProperty(ref description, value);
+    }
 
-        public string Text
+    public string ItemId
+    {
+        get
         {
-            get => text;
-            set => SetProperty(ref text, value);
+            return itemId;
         }
-
-        public string Description
+        set
         {
-            get => description;
-            set => SetProperty(ref description, value);
+            itemId = value;
+            LoadItemId(value);
         }
+    }
 
-        public string ItemId
+    public ItemDetailViewModel()
+    {
+        Fields = new ObservableCollection<Field>();
+    }
+
+    public async void LoadItemId(string itemId)
+    {
+        try
         {
-            get
+            var item = await DataStore.GetItemAsync(itemId);
+            Id = item.Id;
+            Title = item.Name;
+            Description = item.Description;
+
+            if (!item.IsGroup) 
             {
-                return itemId;
-            }
-            set
-            {
-                itemId = value;
-                LoadItemId(value);
+                PwEntry dataEntry = (PwEntry)item;
+                Fields.Clear();
+                List<Field> fields = dataEntry.GetFields(GetImage: FieldIcons.GetImage);
+                foreach (Field field in fields)
+                {
+                    Fields.Add(field);
+                }
+                Debug.WriteLine($"ItemDetailViewModel: Name={dataEntry.Name}, IsBusy={IsBusy}.");
             }
         }
-
-        public async void LoadItemId(string itemId)
+        catch (Exception)
         {
-            try
-            {
-                var item = await DataStore.GetItemAsync(itemId);
-                Id = item.Id;
-                Text = item.Text;
-                Description = item.Description;
-            }
-            catch (Exception)
-            {
-                Debug.WriteLine("Failed to Load Item");
-            }
+            Debug.WriteLine("Failed to Load Item");
         }
     }
 }
