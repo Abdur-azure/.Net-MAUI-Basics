@@ -32,7 +32,6 @@ namespace PassXYZ.Vault.Services
                 }
             }
         }
-        private User? _user = default;
         private readonly PasswordDb db = default!;
         public UserService() 
         {
@@ -41,9 +40,22 @@ namespace PassXYZ.Vault.Services
             SynchronizeUsersAsync();
         }
 
+        private User? _user = default;
         public User CurrentUser
         {
-            get => _user;
+            get 
+            { 
+                if (_user == null)
+                {
+                    _user = ServiceHelper.GetService<LoginUser>();
+                    Debug.WriteLine("UserService: _user is null and resolving using DI.");
+                }
+                return _user;
+            }
+            set 
+            {
+                _user = value;
+            }
         }
 
         public User GetUser(string username)
@@ -79,29 +91,16 @@ namespace PassXYZ.Vault.Services
         {
             if (user == null) { Debug.Assert(false); throw new ArgumentNullException("user"); }
 
-            var logger = new KPCLibLogger();
-            await Task.Run(() => {
+            await Task.Run(async () => {
                 db.New(user);
                 // Create a PassXYZ Usage note entry
                 PwEntry pe = new PwEntry(true, true);
                 pe.Strings.Set(PxDefs.TitleField, new ProtectedString(false, Properties.Resources.entry_id_passxyz_usage));
                 pe.Strings.Set(PxDefs.NotesField, new ProtectedString(false, Properties.Resources.about_passxyz_usage));
-                //pe.CustomData.Set(Item.TemplateType, ItemSubType.Notes.ToString());
-                //pe.CustomData.Set(Item.PxIconName, "ic_entry_passxyz.png");
                 pe.SetType(ItemSubType.Notes);
                 db.RootGroup.AddEntry(pe, true);
 
-                try
-                {
-                    logger.StartLogging("Saving database ...", true);
-                    db.DescriptionChanged = DateTime.UtcNow;
-                    db.Save(logger);
-                    logger.EndLogging();
-                }
-                catch (Exception e)
-                {
-                    Debug.WriteLine("Failed to save database." + e.Message);
-                }
+                await db.SaveAsync();
             });
 
         }
@@ -141,11 +140,11 @@ namespace PassXYZ.Vault.Services
                 IsBusyToLoadUsers = false;
                 if (Users.Count > 0)
                 {
-                    // We need to check whether the current user at App level exist
-                    if (!Users.Contains(App.CurrentUser) && !string.IsNullOrEmpty(App.CurrentUser.Username))
+                    // We need to check whether the current user is in the list. It may be a cache user, but delete already.
+                    if (!Users.Contains(CurrentUser) && !string.IsNullOrEmpty(CurrentUser.Username))
                     {
-                        Debug.WriteLine($"LoginViewModel: Username={App.CurrentUser.Username} doesn't existed.");
-                        App.CurrentUser.Username = string.Empty;
+                        Debug.WriteLine($"LoginViewModel: Username={CurrentUser.Username} doesn't existed.");
+                        CurrentUser.Username = string.Empty;
                     }
                 }
 
@@ -161,15 +160,24 @@ namespace PassXYZ.Vault.Services
         public async Task<bool> LoginAsync(User user)
         {
             if (user == null) { Debug.Assert(false); throw new ArgumentNullException("user"); }
-            _user = user;
 
-            return true;
+            return await Task.Run(() =>
+            {
+                if (string.IsNullOrEmpty(user.Password)) { return false; }
+
+                db.Open(user);
+                if (db.IsOpen)
+                {
+                    db.CurrentGroup = db.RootGroup;
+                }
+                return db.IsOpen;
+            });
         }
 
         public void Logout()
         {
             if (db.IsOpen) { db.Close(); }
-            Debug.WriteLine("DataStore.Logout(done)");
+            Debug.WriteLine("UserService.Logout(done)");
         }
 
         public string GetMasterPassword()
@@ -185,7 +193,7 @@ namespace PassXYZ.Vault.Services
             {
                 db.MasterKeyChanged = DateTime.UtcNow;
                 // Save the database to take effect
-                await SaveAsync();
+                await db.SaveAsync();
             }
             return result;
         }
@@ -206,9 +214,5 @@ namespace PassXYZ.Vault.Services
             return db.CreateKeyFile(data, username);
         }
 
-        private async Task SaveAsync()
-        {
-            Debug.WriteLine($"UserService: SaveAsync");
-        }
     }
 }

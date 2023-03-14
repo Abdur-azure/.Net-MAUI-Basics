@@ -1,5 +1,7 @@
 ﻿using System.Collections.ObjectModel;
+using System.IO.Compression;
 using System.Diagnostics;
+using System.Reflection;
 
 using KPCLib;
 using PassXYZLib;
@@ -12,13 +14,6 @@ public partial class App : Application
 {
     public static bool InBackground = false;
     private static bool _isLogout = false;
-    public static LoginUser CurrentUser
-    {
-        get
-        {
-            return LoginUser.Instance;
-        }
-    }
 
     /// <summary>
     /// When a connection is timeout, the network is not stable.
@@ -33,8 +28,6 @@ public partial class App : Application
         Routing.RegisterRoute(nameof(ItemDetailPage), typeof(ItemDetailPage));
 		Routing.RegisterRoute(nameof(NewItemPage), typeof(NewItemPage));
 
-		DependencyService.Register<MockDataStore>();
-        DependencyService.Register<UserService>();
         MainPage = new AppShell();
 	}
 
@@ -42,8 +35,8 @@ public partial class App : Application
     {
         InBackground = false;
         IsSshOperationTimeout = false;
-        //InitTestDb();
-        //ExtractIcons();
+        InitTestDb();
+        ExtractIcons();
 
         Debug.WriteLine($"PassXYZ: OnStart, InBackground={InBackground}");
     }
@@ -90,4 +83,46 @@ public partial class App : Application
         Debug.WriteLine($"PassXYZ: OnResume, InBackground={InBackground}");
     }
 
+    private void ExtractIcons()
+    {
+        var assembly = this.GetType().GetTypeInfo().Assembly;
+        foreach (EmbeddedDatabase iconFile in EmbeddedIcons.IconFiles)
+        {
+            if (!File.Exists(iconFile.Path))
+            {
+                using (var stream = assembly.GetManifestResourceStream(iconFile.ResourcePath))
+                using (var fileStream = new FileStream(iconFile.Path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
+                {
+                    stream.CopyTo(fileStream);
+                }
+            }
+        }
+
+        if (!File.Exists(EmbeddedIcons.iconZipFile.Path))
+        {
+            using (var stream = assembly.GetManifestResourceStream(EmbeddedIcons.iconZipFile.ResourcePath))
+            using (var fileStream = new FileStream(EmbeddedIcons.iconZipFile.Path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
+            {
+                stream.CopyTo(fileStream);
+            }
+            ZipFile.ExtractToDirectory(EmbeddedIcons.iconZipFile.Path, PxDataFile.IconFilePath);
+        }
+    }
+
+    [System.Diagnostics.Conditional("DEBUG")]
+    private void InitTestDb()
+    {
+        foreach (EmbeddedDatabase eDb in TEST_DB.DataFiles)
+        {
+            if (!File.Exists(eDb.Path))
+            {
+                var assembly = this.GetType().GetTypeInfo().Assembly;
+                using (var stream = assembly.GetManifestResourceStream(eDb.ResourcePath))
+                using (var fileStream = new FileStream(eDb.Path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
+                {
+                    stream.CopyTo(fileStream);
+                }
+            }
+        }
+    }
 }

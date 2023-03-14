@@ -21,11 +21,19 @@ public class LoginUser : PxUser
     private bool _isFingerprintEnabled = false;
     public bool IsFingerprintEnabled => _isFingerprintEnabled;
 
-    public static IUserService<User> UserService => DependencyService.Get<IUserService<User>>();
+    private IUserService<User> _userService;
+    public LoginUser(IUserService<User> userService)
+    {
+        _userService = userService ?? throw new ArgumentNullException(nameof(userService));
+        _userService.CurrentUser = this;
+        Debug.WriteLine("LoginUser created.");
+    }
+
+    public static LoginUser Instance => ServiceHelper.GetService<LoginUser>();
 
     public override void Logout() 
     {
-        UserService.Logout();
+        _userService.Logout();
     }
 
     /// <summary>
@@ -77,15 +85,4 @@ public class LoginUser : PxUser
         }
     }
 
-    private static LoginUser? instance = null;
-    public static LoginUser Instance 
-    {
-        get 
-        {
-            if (instance == null) { instance = new LoginUser(); }
-            return instance;
-        }
-    }
-
-    private LoginUser() { }
 }
